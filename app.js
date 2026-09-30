@@ -405,10 +405,47 @@ function toast(msg, type = 'success', dur = 3500) {
 // ================================================================
 // 7. ROUTER
 // ================================================================
-function navigate(page, params = {}) {
+// ---- Browser history / URL hash routing (#login, #dashboard, #workflow/BATCH-ID …) ----
+// Makes the phone/browser Back & Forward buttons work and lets #login be opened directly.
+const ROUTES = ['landing', 'login', 'dashboard', 'workflow', 'blockchain', 'qr-admin'];
+
+function currentHash() {
+  const p = STATE.page;
+  if (p === 'landing') return '';
+  return '#' + p + (p === 'workflow' && STATE.activeBatchId ? '/' + encodeURIComponent(STATE.activeBatchId) : '');
+}
+function syncHash(replace) {
+  const h = currentHash();
+  if ((window.location.hash || '') === h) return;
+  const url = window.location.pathname + window.location.search + h;
+  try {
+    if (replace) history.replaceState(history.state, '', url);   // keep entry's marker
+    else history.pushState({ app: true }, '', url);              // {app:true} = we can safely go back in-app
+  } catch (e) {}
+}
+function routeFromHash() {
+  const [pg, arg] = (window.location.hash || '').slice(1).split('/');
+  if (ROUTES.includes(pg)) {
+    STATE.page = pg;
+    if (arg) STATE.activeBatchId = decodeURIComponent(arg);
+  } else {
+    STATE.page = 'landing';
+  }
+}
+
+function navigate(page, params = {}, opts = {}) {
   STATE.page = page;
   if (params.batchId !== undefined) STATE.activeBatchId = params.batchId;
+  syncHash(!!opts.replace);
+  window.scrollTo(0, 0);
   renderApp();
+}
+
+// "Back" button logic: go back in history if the previous entry is inside this app,
+// otherwise (e.g. login page opened directly via link) go to the home page.
+function goBack() {
+  if (history.state && history.state.app) history.back();
+  else navigate('landing', {}, { replace: true });
 }
 
 function renderApp() {
@@ -427,7 +464,15 @@ function renderApp() {
 
   // Redirect to login if trying to access protected pages
   const protectedPages = ['dashboard', 'workflow', 'blockchain', 'qr-admin'];
-  if (!STATE.loggedIn && protectedPages.includes(STATE.page)) STATE.page = 'login';
+  if (!STATE.loggedIn && protectedPages.includes(STATE.page)) {
+    // remember where they were going; after login send them there
+    STATE.afterLogin = { page: STATE.page, batchId: STATE.activeBatchId };
+    STATE.page = 'login';
+    syncHash(true);
+  } else if (STATE.loggedIn && STATE.page === 'login') {
+    STATE.page = 'dashboard';        // already signed in
+    syncHash(true);
+  }
 
   const pageMap = {
     landing:    pageLanding,
@@ -705,7 +750,7 @@ function pageLogin() {
       </form>
 
       <div style="text-align:center;margin-top:14px">
-        <button class="btn btn-ghost btn-sm" onclick="navigate('landing')">← Back to Home</button>
+        <button class="btn btn-ghost btn-sm" onclick="goBack()">← Back to Home</button>
       </div>
 
       <div style="margin-top:16px;padding:10px 12px;background:var(--amber-glow-sm);border:1px solid var(--border-amber);border-radius:var(--radius);font-size:0.75rem;color:var(--text-secondary);text-align:center">
@@ -728,7 +773,9 @@ function handleLogin(e) {
     STATE.loggedIn = true;
     saveState();
     toast('Welcome back, System Admin! 🐝', 'success');
-    navigate('dashboard');
+    const t = STATE.afterLogin; STATE.afterLogin = null;
+    // replace (not push) so Back from the dashboard doesn't land on the login form again
+    navigate(t ? t.page : 'dashboard', t && t.batchId ? { batchId: t.batchId } : {}, { replace: true });
   } else {
     toast('Invalid credentials. Try admin / honeychain2026', 'error');
     document.getElementById('login-pass').value = '';
@@ -1481,27 +1528,49 @@ function qrCard(batch) {
   </div>`;
 }
 
-function initAllQRCodes() {
-  document.querySelectorAll('[data-qr]').forEach(el => {
-    const batchId = el.dataset.qr;
-    if (!batchId) return;
-    const bottle = el.dataset.qrBottle;   // set on per-bottle QR labels
-    const url = verifyBaseUrl() + '?verify=' + batchId + (bottle ? '&bottle=' + bottle : '');
-    const sz = parseInt(el.dataset.qrSize) || 180;
-    el.innerHTML = '';
-    try {
-      if (typeof QRCode !== 'undefined') {
-        new QRCode(el, {
-          text: url, width: sz, height: sz,
-          colorDark: '#000000', colorLight: '#FFFFFF',
-          correctLevel: QRCode.CorrectLevel.H,
-        });
-      } else {
-        throw new Error('QRCode library pending');
-      }
-    } catch (err) {
-      el.innerHTML = `<div style="padding:6px;font-size:0.68rem;color:#D97706;background:#FEF3C7;border-radius:6px;word-break:break-all;text-align:center">🔗 ${url}</div>`;
+function drawQR(el) {
+  if (el.dataset.qrDone) return;
+  el.dataset.qrDone = '1';
+  const batchId = el.dataset.qr;
+  if (!batchId) return;
+  const bottle = el.dataset.qrBottle;   // set on per-bottle QR labels
+  const url = verifyBaseUrl() + '?verify=' + batchId + (bottle ? '&bottle=' + bottle : '');
+  const sz = parseInt(el.dataset.qrSize) || 180;
+  el.innerHTML = '';
+  try {
+    if (typeof QRCode !== 'undefined') {
+      new QRCode(el, {
+        text: url, width: sz, height: sz,
+        colorDark: '#000000', colorLight: '#FFFFFF',
+        // Bottle labels are printed & scanned up close: level M is plenty and ~2x faster than H
+        correctLevel: bottle ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.H,
+      });
+    } else {
+      throw new Error('QRCode library pending');
     }
+  } catch (err) {
+    el.innerHTML = `<div style="padding:6px;font-size:0.68rem;color:#D97706;background:#FEF3C7;border-radius:6px;word-break:break-all;text-align:center">🔗 ${url}</div>`;
+  }
+}
+
+let _qrObserver = null;
+// Printing: make sure every lazily-drawn QR exists before the print dialog captures the page
+window.addEventListener('beforeprint', () => document.querySelectorAll('[data-qr]').forEach(drawQR));
+function initAllQRCodes() {
+  if (_qrObserver) { _qrObserver.disconnect(); _qrObserver = null; }
+  const els = document.querySelectorAll('[data-qr]');
+  const lazy = 'IntersectionObserver' in window;
+  if (lazy) {
+    // Draw bottle QRs only when they scroll near the viewport (80+ at once froze phones)
+    _qrObserver = new IntersectionObserver((entries) => {
+      entries.forEach(en => {
+        if (en.isIntersecting) { _qrObserver.unobserve(en.target); drawQR(en.target); }
+      });
+    }, { rootMargin: '300px 0px' });
+  }
+  els.forEach(el => {
+    if (lazy && el.dataset.qrBottle) _qrObserver.observe(el);
+    else drawQR(el);
   });
 }
 
@@ -1727,7 +1796,9 @@ async function init() {
     // 2b. Overlay any user-created/updated chains from localStorage
     loadPersistedState();
 
-    // 3. Render the app
+    // 3. Open the page named in the URL hash (e.g. /#login), then render
+    routeFromHash();
+    window.addEventListener('popstate', () => { routeFromHash(); renderApp(); });
     renderApp();
   } catch (err) {
     console.error('HoneyChain init error:', err);
@@ -1836,6 +1907,7 @@ function toggleBottleChip(bId) {
 
 // Make handlers globally accessible for inline onclick attributes
 window.navigate        = navigate;
+window.goBack          = goBack;
 window.doLogout        = doLogout;
 window.selectRole      = selectRole;
 window.startNewBatch   = startNewBatch;
