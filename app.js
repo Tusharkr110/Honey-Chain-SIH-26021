@@ -813,7 +813,7 @@ function pageDashboard() {
               </td>
               <td>
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <button class="btn btn-ghost btn-sm" style="border-color:rgba(245,166,35,0.3);color:var(--amber)" onclick="simulateScan('${b.id}')">📱 QR Code</button>
+                  <button class="btn btn-ghost btn-sm" style="border-color:rgba(245,166,35,0.3);color:var(--amber)" onclick="navigate('qr-admin')">▣ Bottle QRs</button>
                   ${b.status !== 'RETIRED' ? `<button class="btn btn-primary btn-sm" onclick="navigate('workflow',{batchId:'${b.id}'})">Continue →</button>` : ''}
                   <button class="btn btn-ghost btn-sm" onclick="navigate('workflow',{batchId:'${b.id}'})">
                     ${b.status === 'RETIRED' ? 'View Chain' : 'Details'}
@@ -897,15 +897,13 @@ function pageWorkflow() {
             <span style="font-size:0.78rem;color:var(--text-muted)">${chain.length} cryptographic blocks in chain</span>
           </div>
         </div>
-        <div class="wf-qr" style="text-align:center;background:rgba(255,255,255,0.03);padding:12px;border-radius:12px;border:1px solid var(--border)">
-          <div style="background:#fff;padding:6px;border-radius:8px;display:inline-block">
-            <div data-qr="${batchId}" data-qr-size="110" style="width:110px;height:110px;display:flex;align-items:center;justify-content:center">
-              <div class="loader"></div>
-            </div>
-          </div>
-          <div style="margin-top:8px">
-            <button class="btn btn-ghost btn-sm" style="font-size:0.75rem;padding:4px 10px" onclick="simulateScan('${batchId}')">📱 Simulate Scan</button>
-          </div>
+        <div class="wf-qr" style="text-align:center;background:rgba(255,255,255,0.03);padding:14px 16px;border-radius:12px;border:1px solid var(--border);min-width:170px">
+          ${batch.bottles ? `
+          <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em">Bottle QRs</div>
+          <div style="font-family:Outfit,sans-serif;font-size:1.6rem;font-weight:700;color:var(--amber);margin:4px 0">${soldCount(batch)} / ${batch.bottles}</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:10px">bottles sold</div>
+          <button class="btn btn-ghost btn-sm" style="font-size:0.75rem" onclick="navigate('qr-admin')">▣ View Bottle QR Codes</button>` : `
+          <div style="font-size:0.78rem;color:var(--text-secondary);max-width:170px">Bottle QR codes appear after the Processing step.</div>`}
         </div>
       </div>
     </div>
@@ -1403,96 +1401,83 @@ function pageQRAdmin() {
   <div style="animation:fade-up 0.35s ease">
     <div class="section-header">
       <div class="section-tag">▣ QR Codes</div>
-      <h2 class="section-title">Batch Verification QR Codes</h2>
+      <h2 class="section-title">Unique QR Code for Every Bottle</h2>
       <p class="section-desc">
-        Each QR encodes a real verification URL. Scanning shows <b style="color:var(--amber)">⚠️ NOT YET SOLD</b> 
-        or <b style="color:var(--green)">✅ AUTHENTICALLY SOLD</b> based on live blockchain state.
-        <br><span style="font-size:0.8rem;color:var(--text-muted)">Base URL: <code style="color:var(--amber)">${base}</code></span>
+        Each bottle gets its own QR encoding a verification URL like
+        <code style="color:var(--amber);word-break:break-all">${base}/?verify=BATCH-ID&amp;bottle=B007</code>.
+        Scanning shows that bottle's own status — selling one bottle does not affect the others.
       </p>
     </div>
-
-    <div class="alert alert-info mb-24">
-      <span>ℹ️</span>
-      <div>
-        <b>Verify a QR code:</b> Scan any QR code below with your phone camera to open its live verification page, or preview the scan here.
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          ${batches.map(b => `<button class="btn btn-ghost btn-sm" onclick="simulateScan('${b.id}')">▶ Simulate Scan ${b.id.split('-').pop()}</button>`).join('')}
-        </div>
-      </div>
-    </div>
-
-    <div class="grid-3">
+    <div style="display:flex;flex-direction:column;gap:24px">
       ${batches.map(b => qrCard(b)).join('')}
     </div>
-    ${batches.map(bottleQRSheet).join('')}
   </div>`;
+}
+
+function bottleIsSold(b, id) {
+  const list = b.retiredBottles || [];
+  if (b.status === 'RETIRED' && !list.length) return true;
+  return list.includes(id);
+}
+function soldCount(b) {
+  if (!b.bottles) return 0;
+  const list = b.retiredBottles || [];
+  if (b.status === 'RETIRED' && !list.length) return b.bottles;
+  return list.length;
 }
 
 function qrCard(batch) {
   const sc = CFG.STATUS[batch.status] || {};
-  const isRetired = batch.status === 'RETIRED';
-  const isAtRetail = batch.status === 'AT_RETAIL';
-  const verifyUrl = verifyBaseUrl() + '?verify=' + batch.id;
-
-  const statusColor = isRetired ? 'var(--green)' : 'var(--amber)';
-  const statusBg = isRetired ? 'rgba(34,197,94,0.08)' : 'rgba(245,166,35,0.08)';
-  const statusBorder = isRetired ? 'rgba(34,197,94,0.3)' : 'rgba(245,166,35,0.25)';
+  const total = batch.bottles || 0;
+  const sold = soldCount(batch);
+  const pct = total ? Math.round((sold / total) * 100) : 0;
+  const ids = Array.from({ length: total }, (_, i) => 'B' + String(i + 1).padStart(3, '0'));
+  const short = batch.id.split('-').pop();
 
   return `
-  <div class="card" style="text-align:center">
-    <div class="flex-between mb-12">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--amber)">${batch.id}</div>
+  <div class="card">
+    <div class="flex-between mb-16">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--amber)">${batch.id}</div>
+        <div style="font-weight:700;margin-top:4px">${batch.name}</div>
+        <div style="font-size:0.8rem;color:var(--text-secondary)">🐝 ${batch.beekeeperName}</div>
+      </div>
       <span class="badge ${sc.badge}">${sc.icon} ${sc.label}</span>
     </div>
-    <div style="font-weight:700;margin-bottom:4px">${batch.name}</div>
-    <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px">🐝 ${batch.beekeeperName}</div>
 
-    <!-- QR Code Container -->
-    <div style="display:flex;justify-content:center;margin-bottom:16px">
-      <div style="background:#fff;padding:10px;border-radius:10px;border:2px solid ${statusBorder}">
-        <div data-qr="${batch.id}" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center">
-          <div class="loader"></div>
-        </div>
+    ${total ? `
+    <div style="padding:12px 16px;border-radius:10px;margin-bottom:16px;background:rgba(245,166,35,0.06);border:1px solid rgba(245,166,35,0.25)">
+      <div class="flex-between" style="margin-bottom:8px">
+        <b style="font-size:0.9rem">🍯 ${sold} of ${total} bottles sold</b>
+        <span style="font-size:0.78rem;color:var(--amber);font-weight:600">${pct}%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px">
+        Every bottle has its <b>own unique QR</b>. Scanning one shows only that bottle's status:
+        ✅ sold &nbsp;or&nbsp; ⚠️ not yet sold. Tap a label to preview its scan page.
       </div>
     </div>
 
-    <!-- Status Badge -->
-    <div style="padding:12px 16px;border-radius:10px;margin-bottom:12px;background:${statusBg};border:1px solid ${statusBorder}">
-      <div style="font-size:1.4rem;margin-bottom:6px">${isRetired ? '✅' : isAtRetail ? '⚠️' : '⏳'}</div>
-      <div style="font-weight:700;font-size:0.875rem;color:${statusColor}">
-        ${isRetired ? 'SOLD — Scan shows VERIFIED SALE' : isAtRetail ? 'AT RETAIL — Scan shows NOT YET SOLD' : 'IN PIPELINE — Scan shows current status'}
-      </div>
-      ${isRetired && batch.retailer ? `<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">${batch.retailer}</div>` : ''}
-      ${!isRetired ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">⚠️ Will warn consumer: batch not yet confirmed sold</div>` : ''}
+    <div class="qr-label-grid">
+      ${ids.map(id => {
+        const isSold = bottleIsSold(batch, id);
+        return `
+        <div class="qr-label ${isSold ? 'sold' : ''}" onclick="simulateScan('${batch.id}','${id}')" title="Preview scan for ${id}">
+          <div data-qr="${batch.id}" data-qr-bottle="${id}" data-qr-size="100" class="qr-label-img"></div>
+          <div class="qr-label-id">${short}-${id}</div>
+          <div class="qr-label-state">${isSold ? '✅ Sold' : '⚠️ Not sold'}</div>
+        </div>`;
+      }).join('')}
     </div>
 
-    <div style="font-size:0.68rem;color:var(--text-muted);word-break:break-all;margin-bottom:12px;font-family:'JetBrains Mono',monospace">${verifyUrl}</div>
-
-    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-      <button class="btn btn-ghost btn-sm" style="flex:1;font-size:0.75rem" onclick="simulateScan('${batch.id}', 'B001')">📱 Scan Bottle #1 (B001)</button>
-      <button class="btn btn-ghost btn-sm" style="flex:1;font-size:0.75rem" onclick="simulateScan('${batch.id}', 'B002')">📱 Scan Bottle #2 (B002)</button>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Print Labels</button>
+      ${batch.status !== 'RETIRED' ? `<button class="btn btn-primary btn-sm" onclick="navigate('workflow',{batchId:'${batch.id}'})">Retail Checkout Workflow →</button>` : ''}
+    </div>` : `
+    <div style="padding:16px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px dashed var(--border);font-size:0.85rem;color:var(--text-secondary)">
+      ⏳ Bottle QR codes are generated after the <b>Processing</b> step records how many bottles this batch has.
     </div>
-    ${!isRetired ? `<button class="btn btn-primary btn-sm" style="width:100%" onclick="navigate('workflow',{batchId:'${batch.id}'})">Retail Checkout Workflow →</button>` : ''}
-  </div>`;
-}
-
-function bottleQRSheet(batch) {
-  if (!batch.bottles) return '';
-  const ids = Array.from({ length: batch.bottles }, (_, i) => 'B' + String(i + 1).padStart(3, '0'));
-  const retired = batch.retiredBottles || [];
-  return `
-  <div class="card" style="margin-top:24px">
-    <div class="flex-between mb-12">
-      <h3 style="font-size:1rem;font-weight:700">${batch.id} — ${batch.bottles} Unique Bottle QR Labels</h3>
-      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Print</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px">
-      ${ids.map(id => `
-        <div style="text-align:center;background:#fff;padding:8px;border-radius:8px;color:#000;border:2px solid ${retired.includes(id) ? '#22C55E' : 'transparent'}">
-          <div data-qr="${batch.id}" data-qr-bottle="${id}" data-qr-size="100" style="width:100px;height:100px;margin:auto"></div>
-          <div style="font:600 0.7rem monospace;margin-top:4px">${batch.id.split('-').pop()}-${id}${retired.includes(id) ? ' ✅' : ''}</div>
-        </div>`).join('')}
-    </div>
+    <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="navigate('workflow',{batchId:'${batch.id}'})">Continue Workflow →</button>`}
   </div>`;
 }
 
@@ -1565,7 +1550,7 @@ function pageVerify(batchId, bottleId = null) {
     </div>`;
   if (!bottleId) {
     return _simplePage('📦', 'Batch QR — Not a Bottle Label',
-      `This code identifies the whole batch <b style="color:#F5A623">${batch.name}</b>. Each bottle carries its own unique QR — scan the label on the bottle to check whether that bottle has been sold.`,
+      `This code identifies the whole batch <b style="color:#F5A623">${batch.name}</b>${batch.bottles ? ` (${soldCount(batch)} of ${batch.bottles} bottles sold)` : ''}. Each bottle carries its own unique QR — scan the label on the bottle to check whether that bottle has been sold.`,
       '#F5A623');
   }
   const _bn = /^B(\d{3})$/i.test(bottleId) ? parseInt(bottleId.slice(1), 10) : 0;
