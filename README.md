@@ -114,10 +114,10 @@ See [DEPLOY.md](DEPLOY.md) for additional deployment notes.
 
 The Vercel function in `api/state.js` handles `/api/state`:
 
-| Method | Behavior |
-| --- | --- |
-| `GET` | Returns the shared `{ "chains": {}, "batches": {} }` snapshot, or the saved snapshot. |
-| `POST` | Validates an incoming snapshot and merges valid new chains or extensions. |
+| Method   | Behavior                                                                                                           |
+| -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `GET`    | Returns the shared `{ "chains": {}, "batches": {} }` snapshot, or the saved snapshot.                              |
+| `POST`   | Validates an incoming snapshot and merges valid new chains or extensions.                                          |
 | `DELETE` | Clears the shared snapshot only when `RESET_KEY` is configured and the matching `key` query parameter is supplied. |
 
 The hosted function validates batch IDs, block indexes, previous-hash links, and recalculated SHA-256 hashes. It rejects markup characters, limits request bodies to 400 KB, and accepts chains of at most 60 blocks. The local Python server supports `GET` and `POST` for demos but does not implement the same validation or protected `DELETE` behavior.
