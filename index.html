@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Bharat Bee HoneyChain — Blockchain-based honey traceability from hive to bottle. Real SHA-256 cryptography, IoT monitoring, AI anomaly detection and QR verification.">
+  <meta property="og:title" content="Bharat Bee | HoneyChain — Honey Traceability Platform">
+  <meta property="og:description" content="End-to-end honey traceability powered by blockchain, IoT, and AI. SIH 2026.">
+  <title>Bharat Bee | HoneyChain — Honey Traceability Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2">
+  <link rel="icon" type="image/png" sizes="256x256" href="favicon.png?v=2">
+  <link rel="shortcut icon" href="favicon.ico?v=2">
+  <link rel="apple-touch-icon" href="favicon.png?v=2">
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div id="toast-container"></div>
+  <div id="app" class="app-shell">
+    <!-- Loading state shown while blockchain initializes -->
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#8B99B5;font-family:'Outfit',sans-serif;">
+      <div style="text-align:center">
+        <img src="logo-loader.png" alt="Bharat Bee" width="120" height="120" style="margin-bottom:16px;border-radius:20px;box-shadow:0 8px 32px rgba(245,166,35,0.35);object-fit:contain;background:#fff">
+        <div style="font-size:1.3rem;font-weight:700;color:#F5A623">Bharat Bee HoneyChain</div>
+        <div style="margin-top:8px;font-size:0.9rem">Initializing real SHA-256 blockchain...</div>
+        <div style="margin-top:20px;display:flex;justify-content:center"><div class="loader"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

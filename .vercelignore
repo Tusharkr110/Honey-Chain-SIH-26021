@@ -1,0 +1,4 @@
+local/
+start.bat
+data.json
+*.tmp
