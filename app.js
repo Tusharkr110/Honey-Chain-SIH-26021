@@ -357,7 +357,7 @@ async function initSeedData() {
 // ================================================================
 // 5. UTILITIES
 // ================================================================
-const SVG_LOGO = `<img src="logo.jpg" alt="Bharat Bee Logo" style="height:36px;width:auto;vertical-align:middle;object-fit:contain;border-radius:6px;box-shadow:0 2px 8px rgba(245,166,35,0.3)">`;
+const SVG_LOGO = `<img src="logo.png" alt="Bharat Bee Logo" style="height:38px;width:auto;vertical-align:middle;object-fit:contain;background:#fff;padding:2px 4px;border-radius:8px;box-shadow:0 2px 8px rgba(245,166,35,0.3)">`;
 
 function shortHash(h) { return h ? h.slice(0, 8) + '…' + h.slice(-6) : '—'; }
 function fmtDate(iso) {
@@ -418,7 +418,7 @@ function renderApp() {
   // Check for ?verify= param — QR scan landing
   const urlParams = new URLSearchParams(window.location.search);
   const verifyId = urlParams.get('verify');
-  const bottleId = urlParams.get('bottle') || 'B001';
+  const bottleId = urlParams.get('bottle');  // per-bottle QR; null = batch-level QR
   if (verifyId) {
     document.body.innerHTML = pageVerify(verifyId, bottleId);
     setTimeout(() => runVerifyChain(verifyId), 600);
@@ -462,6 +462,13 @@ function afterRender() {
 
   // Initialize QR codes across all pages
   initAllQRCodes();
+
+  // Mobile: keep the active tab of the horizontal nav strip in view
+  if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+    const act = document.querySelector('.sidebar-item.active');
+    const bar = act && act.closest('.sidebar');
+    if (bar) bar.scrollLeft = Math.max(0, act.offsetLeft - (bar.clientWidth - act.offsetWidth) / 2);
+  }
 
   // Run chain validation on blockchain page
   if (STATE.page === 'blockchain') runBlockchainValidation();
@@ -680,7 +687,7 @@ function pageLogin() {
   <div class="login-page">
     <div class="login-card" style="animation:fade-up 0.4s ease;max-width:380px;padding:32px 28px;text-align:center">
       <div class="login-logo" style="margin-bottom:20px">
-        <img src="logo.jpg" alt="Bharat Bee" style="height:64px;width:auto;object-fit:contain;margin-bottom:12px;border-radius:10px;box-shadow:0 4px 20px rgba(245,166,35,0.3)">
+        <img src="logo.png" alt="Bharat Bee" style="height:64px;width:auto;object-fit:contain;margin-bottom:12px;border-radius:10px;box-shadow:0 4px 20px rgba(245,166,35,0.3)">
         <div class="login-title" style="font-size:1.35rem;font-weight:700;color:var(--text-primary)">System Admin Login</div>
         <div class="login-sub" style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">Bharat Bee Traceability Network</div>
       </div>
@@ -879,18 +886,18 @@ function pageWorkflow() {
   return `
   <div style="animation:fade-up 0.35s ease">
     <!-- Header -->
-    <div class="card mb-24" style="padding:20px">
-      <div class="flex-between" style="align-items:center">
+    <div class="card mb-24 wf-head-card" style="padding:20px">
+      <div class="flex-between wf-head" style="align-items:center">
         <div>
           <div class="section-tag mb-8">⚙️ Supply Chain Workflow</div>
           <h2 class="section-title">${batch.name}</h2>
           <div style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--amber);margin-top:4px">${batchId}</div>
-          <div style="margin-top:12px;display:flex;gap:12px;align-items:center">
+          <div class="wf-meta" style="margin-top:12px;display:flex;gap:12px;align-items:center">
             <span class="badge ${sc.badge}" style="font-size:0.85rem;padding:6px 14px">${sc.icon} ${sc.label}</span>
             <span style="font-size:0.78rem;color:var(--text-muted)">${chain.length} cryptographic blocks in chain</span>
           </div>
         </div>
-        <div style="text-align:center;background:rgba(255,255,255,0.03);padding:12px;border-radius:12px;border:1px solid var(--border)">
+        <div class="wf-qr" style="text-align:center;background:rgba(255,255,255,0.03);padding:12px;border-radius:12px;border:1px solid var(--border)">
           <div style="background:#fff;padding:6px;border-radius:8px;display:inline-block">
             <div data-qr="${batchId}" data-qr-size="110" style="width:110px;height:110px;display:flex;align-items:center;justify-content:center">
               <div class="loader"></div>
@@ -938,7 +945,7 @@ function pageWorkflow() {
 function retiredBanner(batch, chain) {
   const rb = chain.find(b => b.action === 'TOKEN_RETIRED');
   return `
-  <div style="text-align:center;padding:48px 32px;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius-xl);animation:fade-up 0.4s ease">
+  <div class="sold-banner" style="text-align:center;padding:48px 32px;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius-xl);animation:fade-up 0.4s ease">
     <div style="font-size:4rem;margin-bottom:16px">🔥</div>
     <h2 style="font-size:1.6rem;font-weight:800;color:var(--green);margin-bottom:8px">Token Retired — Chain Sealed</h2>
     <p style="color:var(--text-secondary);max-width:500px;margin:0 auto 28px;line-height:1.7">
@@ -946,7 +953,7 @@ function retiredBanner(batch, chain) {
       and no further modifications can be made to this chain.
     </p>
     ${rb ? `
-    <div style="display:inline-grid;grid-template-columns:1fr 1fr;gap:16px;text-align:left;background:var(--bg-card);padding:20px 24px;border-radius:var(--radius-lg);border:1px solid rgba(34,197,94,0.25);margin-bottom:24px">
+    <div class="sold-grid" style="display:inline-grid;grid-template-columns:1fr 1fr;gap:16px;text-align:left;background:var(--bg-card);padding:20px 24px;border-radius:var(--radius-lg);border:1px solid rgba(34,197,94,0.25);margin-bottom:24px">
       <div><div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:2px">SOLD AT</div><div style="font-weight:700">${rb.data.storeName || '—'}</div></div>
       <div><div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:2px">LOCATION</div><div style="font-weight:700">${rb.data.storeLocation || '—'}</div></div>
       <div><div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:2px">SALE DATE</div><div style="font-weight:600">${rb.data.saleDate || fmtDate(rb.timestamp)}</div></div>
@@ -955,7 +962,7 @@ function retiredBanner(batch, chain) {
       </div>
     </div>` : ''}
     <button class="btn btn-primary" onclick="navigate('qr-admin')">▣ View QR Code</button>
-    <button class="btn btn-ghost" style="margin-left:8px" onclick="navigate('blockchain')">⛓ Full Chain</button>
+    <button class="btn btn-ghost sold-btn2" style="margin-left:8px" onclick="navigate('blockchain')">⛓ Full Chain</button>
   </div>`;
 }
 
@@ -1417,6 +1424,7 @@ function pageQRAdmin() {
     <div class="grid-3">
       ${batches.map(b => qrCard(b)).join('')}
     </div>
+    ${batches.map(bottleQRSheet).join('')}
   </div>`;
 }
 
@@ -1468,11 +1476,32 @@ function qrCard(batch) {
   </div>`;
 }
 
+function bottleQRSheet(batch) {
+  if (!batch.bottles) return '';
+  const ids = Array.from({ length: batch.bottles }, (_, i) => 'B' + String(i + 1).padStart(3, '0'));
+  const retired = batch.retiredBottles || [];
+  return `
+  <div class="card" style="margin-top:24px">
+    <div class="flex-between mb-12">
+      <h3 style="font-size:1rem;font-weight:700">${batch.id} — ${batch.bottles} Unique Bottle QR Labels</h3>
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Print</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px">
+      ${ids.map(id => `
+        <div style="text-align:center;background:#fff;padding:8px;border-radius:8px;color:#000;border:2px solid ${retired.includes(id) ? '#22C55E' : 'transparent'}">
+          <div data-qr="${batch.id}" data-qr-bottle="${id}" data-qr-size="100" style="width:100px;height:100px;margin:auto"></div>
+          <div style="font:600 0.7rem monospace;margin-top:4px">${batch.id.split('-').pop()}-${id}${retired.includes(id) ? ' ✅' : ''}</div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
 function initAllQRCodes() {
   document.querySelectorAll('[data-qr]').forEach(el => {
     const batchId = el.dataset.qr;
     if (!batchId) return;
-    const url = verifyBaseUrl() + '?verify=' + batchId;
+    const bottle = el.dataset.qrBottle;   // set on per-bottle QR labels
+    const url = verifyBaseUrl() + '?verify=' + batchId + (bottle ? '&bottle=' + bottle : '');
     const sz = parseInt(el.dataset.qrSize) || 180;
     el.innerHTML = '';
     try {
@@ -1491,15 +1520,15 @@ function initAllQRCodes() {
   });
 }
 
-function simulateScan(batchId, bottleId = 'B001') {
-  const url = verifyBaseUrl() + '?verify=' + batchId + '&bottle=' + bottleId;
+function simulateScan(batchId, bottleId = null) {
+  const url = verifyBaseUrl() + '?verify=' + batchId + (bottleId ? '&bottle=' + bottleId : '');
   window.open(url, '_blank', 'width=420,height=760,menubar=no,toolbar=no');
 }
 
 // ================================================================
 // 15. PAGE — VERIFY RESULT  (Public, Mobile-Optimized — QR scan landing)
 // ================================================================
-function pageVerify(batchId, bottleId = 'B001') {
+function pageVerify(batchId, bottleId = null) {
   const batch = STATE.batches[batchId];
   const chain = STATE.chains[batchId] || [];
 
@@ -1521,6 +1550,31 @@ function pageVerify(batchId, bottleId = 'B001') {
       </div>
     </div>`;
   }
+
+  // ---- Per-bottle validation: every bottle has its own QR (B001..B0NN) ----
+  const _simplePage = (icon, title, msg, color) => `
+    <style>body{background:#080C14;font-family:Inter,sans-serif;margin:0}</style>
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+      <div style="text-align:center;max-width:400px">
+        <div style="font-size:3rem">${icon}</div>
+        <h2 style="color:#F0F4FF;margin:12px 0 8px;font-family:Outfit,sans-serif;font-size:1.3rem">${title}</h2>
+        <p style="color:#8B99B5;font-size:0.875rem">${msg}</p>
+        <div style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:${color}">${batchId}</div>
+        <a href="${window.location.pathname}" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#F5A623;color:#000;border-radius:8px;font-weight:600;text-decoration:none;font-family:Outfit,sans-serif">← Go Home</a>
+      </div>
+    </div>`;
+  if (!bottleId) {
+    return _simplePage('📦', 'Batch QR — Not a Bottle Label',
+      `This code identifies the whole batch <b style="color:#F5A623">${batch.name}</b>. Each bottle carries its own unique QR — scan the label on the bottle to check whether that bottle has been sold.`,
+      '#F5A623');
+  }
+  const _bn = /^B(\d{3})$/i.test(bottleId) ? parseInt(bottleId.slice(1), 10) : 0;
+  if (!batch.bottles || _bn < 1 || _bn > batch.bottles) {
+    return _simplePage('❌', 'Invalid Bottle QR',
+      `Bottle <b style="color:#FCA5A5">${bottleId}</b> does not exist in this batch${batch.bottles ? ` (valid: B001–B${String(batch.bottles).padStart(3,'0')})` : ' (batch not bottled yet)'}. This may be a counterfeit label.`,
+      '#FCA5A5');
+  }
+  bottleId = bottleId.toUpperCase();
 
   // Check if a retirement block exists for this specific bottle or the entire batch
   const retireBlock = chain.find(b => {
